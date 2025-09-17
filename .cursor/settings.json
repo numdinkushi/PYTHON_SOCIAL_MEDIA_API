@@ -1,0 +1,13 @@
+{
+    "python.linting.enabled": true,
+    "python.linting.pylintEnabled": true,
+    "python.linting.flake8Enabled": true,
+    "python.analysis.autoImportCompletions": true,
+    "python.analysis.autoSearchPaths": true,
+    "python.analysis.diagnosticMode": "workspace",
+    "python.analysis.typeCheckingMode": "basic",
+    "editor.codeActionsOnSave": {
+        "source.organizeImports": true
+    },
+    "python.defaultInterpreterPath": "./venv/bin/python"
+} 
