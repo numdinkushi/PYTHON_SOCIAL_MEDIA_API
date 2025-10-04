@@ -5,11 +5,13 @@ from ..database import get_db
 from .. import models
 from ..schemas import UserCreate, UserResponse
 from ..utils import hash_password
+from .oauth2 import get_current_user
 
 router = APIRouter(
     prefix="/users",
     tags=["users"]
 )
+
 
 @router.post("/", status_code=status.HTTP_201_CREATED, response_model=UserResponse)
 def create_user(user: UserCreate, db: Session = Depends(get_db)):
@@ -31,6 +33,17 @@ def create_user(user: UserCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(new_user)
     return new_user
+
+
+@router.get("/", response_model=List[UserResponse])
+def get_users(db: Session = Depends(get_db)):
+    users = db.query(models.User).all()
+    return users
+
+
+@router.get("/logged-in-user", response_model=UserResponse)
+def get_logged_in_user(current_user: int = Depends(get_current_user)):
+    return current_user
 
 
 @router.get('/{id}', response_model=UserResponse)
