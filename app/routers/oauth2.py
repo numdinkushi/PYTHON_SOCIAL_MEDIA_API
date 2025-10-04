@@ -5,16 +5,12 @@ from ..schemas import TokenData
 from sqlalchemy.orm import Session
 from ..database import get_db
 from .. import models
+from ..config import settings
 from datetime import datetime, timedelta
 
-import os
-from dotenv import load_dotenv
-
-load_dotenv()
-
-SECRET_KEY = os.getenv("SECRET_KEY")
-ALGORITHM = 'HS256'
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 30))
+SECRET_KEY = settings.secret_key
+ALGORITHM = settings.algorithm
+ACCESS_TOKEN_EXPIRE_MINUTES = settings.access_token_expire_minutes
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
 
@@ -44,6 +40,6 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
                                           headers={"WWW-Authenticate": "Bearer"})
     token = verify_token(token, credentials_exception)
     user = db.query(models.User).filter(models.User.id == token.id).first()
-    
+
     return user
     # return verify_token(token, credentials_exception)
