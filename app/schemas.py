@@ -34,6 +34,7 @@ class PostResponse(PostBase):
     created_at: datetime
     owner_id: int
     owner: UserResponse
+    votes: Optional[int] = 0
 
     class Config:
         from_attributes = True

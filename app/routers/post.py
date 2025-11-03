@@ -1,5 +1,6 @@
 from typing import List, Optional
 from fastapi import APIRouter, status, HTTPException, Depends
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from ..database import get_db
 from .. import models
@@ -14,15 +15,34 @@ router = APIRouter(
 @router.get("/", response_model=List[PostResponse])
 def get_posts(db: Session = Depends(get_db), current_user: int = Depends(get_current_user),
               limit: int = 10, skip: int = 0, search: Optional[str] = ""):
-    print({'limit': limit}, {'skip': skip}, {'search': search})
-    query = db.query(models.Post)
+    # pylint: disable=not-callable
+    query = db.query(
+        models.Post,
+        func.coalesce(func.count(models.Vote.post_id), 0).label("votes")
+    ).outerjoin(models.Vote, models.Vote.post_id == models.Post.id)
+    # pylint: enable=not-callable
+
     if search:
         query = query.filter(
             models.Post.title.ilike(f"%{search}%") |
             models.Post.content.ilike(f"%{search}%")
         )
-    posts = query.limit(limit).offset(skip).all()
-    return posts
+
+    results = query.group_by(models.Post.id).limit(limit).offset(skip).all()
+    posts_with_votes = []
+    for post, vote_count in results:
+        post_dict = {
+            "id": post.id,
+            "title": post.title,
+            "content": post.content,
+            "published": post.published,
+            "created_at": post.created_at,
+            "owner_id": post.owner_id,
+            "owner": post.owner,
+            "votes": vote_count or 0
+        }
+        posts_with_votes.append(PostResponse(**post_dict))
+    return posts_with_votes
 
 
 @router.get("/my-posts", response_model=List[PostResponse])
@@ -34,19 +54,33 @@ def get_my_posts(db: Session = Depends(get_db), current_user: int = Depends(get_
 
 @router.get("/{id}", response_model=PostResponse)
 def get_post(id: int, db: Session = Depends(get_db), current_user: int = Depends(get_current_user)):
-    #    print(current_user.dict() if hasattr(current_user, "dict") else current_user.__dict__)
-    #    if current_user.id != id:
-    #         raise HTTPException(
-    #             status_code=status.HTTP_403_FORBIDDEN,
-    #             detail="Not authorized to perform requested action",
-    #         )
-    post = db.query(models.Post).filter(models.Post.id == id).first()
-    if post is None:
+    # pylint: disable=not-callable
+    result = db.query(
+        models.Post,
+        func.coalesce(func.count(models.Vote.post_id), 0).label("votes")
+    ).outerjoin(models.Vote, models.Vote.post_id == models.Post.id).filter(
+        models.Post.id == id
+    ).group_by(models.Post.id).first()
+    # pylint: enable=not-callable
+
+    if result is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Post with id: {id} not found",
         )
-    return post
+
+    post, vote_count = result
+    post_dict = {
+        "id": post.id,
+        "title": post.title,
+        "content": post.content,
+        "published": post.published,
+        "created_at": post.created_at,
+        "owner_id": post.owner_id,
+        "owner": post.owner,
+        "votes": vote_count or 0
+    }
+    return PostResponse(**post_dict)
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED, response_model=PostResponse)
