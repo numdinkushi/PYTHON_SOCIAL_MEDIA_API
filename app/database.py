@@ -1,54 +1,83 @@
+# database.py
 import re
+from urllib.parse import quote_plus
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from .config import settings
 
-# Step 1: Build base connection string
-if settings.database_url:
-    SQLALCHEMY_DATABASE_URL = settings.database_url
-else:
-    SQLALCHEMY_DATABASE_URL = (
-        f"postgresql+psycopg2://{settings.database_user}:{settings.database_password}"
-        f"@{settings.database_host}:{settings.database_port}/{settings.database_name}"
-    )
 
-# Step 2: Force SSL for Render PostgreSQL
-connect_args = {}
-
-if "render.com" in SQLALCHEMY_DATABASE_URL:
-    # Remove duplicate sslmode if present
-    SQLALCHEMY_DATABASE_URL = re.sub(r"[?&]sslmode=[^&]*", "", SQLALCHEMY_DATABASE_URL)
-    SQLALCHEMY_DATABASE_URL = SQLALCHEMY_DATABASE_URL.rstrip("?&")
-
-    # Explicitly append sslmode=require if not already there
-    if "?" in SQLALCHEMY_DATABASE_URL:
-        SQLALCHEMY_DATABASE_URL += "&sslmode=require"
+# ------------------------------------------------------------------
+# 1. Build the bullet-proof DATABASE URL
+# ------------------------------------------------------------------
+def build_database_url():
+    # Prefer explicit DATABASE_URL (e.g. from Render env var)
+    if settings.database_url:
+        url = settings.database_url
     else:
-        SQLALCHEMY_DATABASE_URL += "?sslmode=require"
+        # Build from individual vars (fallback)
+        pwd = quote_plus(settings.database_password)  # URL-encode password
+        url = (
+            f"postgresql+psycopg2://"
+            f"{settings.database_user}:{pwd}@"
+            f"{settings.database_host}:{settings.database_port}/"
+            f"{settings.database_name}"
+        )
 
-    # Optionally tune TCP keepalive settings (recommended on Render)
+    # ------------------------------------------------------------------
+    # 2. Force SSL for Render (free tier ONLY accepts sslmode=require)
+    # ------------------------------------------------------------------
+    if "render.com" in url.lower():
+        # Strip any existing sslmode
+        url = re.sub(r"[?&]sslmode=[^&]*", "", url).rstrip("?&")
+
+        # Append exactly once
+        separator = "&" if "?" in url else "?"
+        url += f"{separator}sslmode=require"
+
+    return url
+
+
+SQLALCHEMY_DATABASE_URL = build_database_url()
+
+
+# ------------------------------------------------------------------
+# 3. TCP keep-alives (survive Render’s 15-min sleep)
+# ------------------------------------------------------------------
+connect_args = {}
+if "render.com" in SQLALCHEMY_DATABASE_URL.lower():
     connect_args = {
         "keepalives": 1,
-        "keepalives_idle": 30,
+        "keepalives_idle": 30,      # seconds
         "keepalives_interval": 10,
         "keepalives_count": 5,
     }
 
-# Step 3: Create engine with resilience settings
+
+# ------------------------------------------------------------------
+# 4. Create the engine — production-grade
+# ------------------------------------------------------------------
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL,
     connect_args=connect_args,
-    pool_pre_ping=True,    # Detect and refresh stale connections
-    pool_recycle=300,      # Reconnect every 5 minutes
+    pool_pre_ping=True,      # Detect dead connections instantly
+    pool_recycle=300,        # Refresh every 5 min
     pool_size=5,
     max_overflow=10,
+    echo=False,              # Set True only for local debugging
 )
 
+
+# ------------------------------------------------------------------
+# 5. Session & Base
+# ------------------------------------------------------------------
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 
+# ------------------------------------------------------------------
+# 6. Dependency for FastAPI routes
+# ------------------------------------------------------------------
 def get_db():
     db = SessionLocal()
     try:
