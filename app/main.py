@@ -16,6 +16,26 @@ origins = ["*"]
 
 app = FastAPI()
 
+
+@app.on_event("startup")
+async def startup_event():
+    """Run database migrations on startup."""
+    import os
+    from alembic.config import Config
+    from alembic import command
+
+    # Get the project root directory (where alembic.ini is located)
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    alembic_ini_path = os.path.join(project_root, "alembic.ini")
+
+    try:
+        alembic_cfg = Config(alembic_ini_path)
+        command.upgrade(alembic_cfg, "head")
+    except Exception as e:
+        # Log error but don't crash the app
+        print(f"Migration error (this is okay on first deploy): {e}")
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
