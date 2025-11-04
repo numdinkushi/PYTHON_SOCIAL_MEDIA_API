@@ -10,12 +10,13 @@ else:
     SQLALCHEMY_DATABASE_URL = f"postgresql://{settings.database_user}:{settings.database_password}@{settings.database_host}:{settings.database_port}/{settings.database_name}"
 
 # Add SSL mode for Render PostgreSQL connections
-# Append ?sslmode=require if connecting to Render database
-if "render.com" in SQLALCHEMY_DATABASE_URL and "sslmode" not in SQLALCHEMY_DATABASE_URL:
-    separator = "&" if "?" in SQLALCHEMY_DATABASE_URL else "?"
-    SQLALCHEMY_DATABASE_URL = f"{SQLALCHEMY_DATABASE_URL}{separator}sslmode=require"
+# Use connect_args for psycopg2 SSL configuration
+connect_args = {}
+if "render.com" in SQLALCHEMY_DATABASE_URL:
+    # For psycopg2-binary, use sslmode in connect_args
+    connect_args = {"sslmode": "require"}
 
-engine = create_engine(SQLALCHEMY_DATABASE_URL)
+engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args=connect_args)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
