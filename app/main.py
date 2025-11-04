@@ -58,10 +58,18 @@ async def global_exception_handler(request, exc):
     # Let FastAPI handle HTTPExceptions normally (they'll get CORS from middleware)
     if isinstance(exc, (HTTPException, StarletteHTTPException)):
         raise exc
+
+    # Log the actual error for debugging
+    import traceback
+    error_detail = str(exc)
+    print(f"Unhandled exception: {error_detail}")
+    traceback.print_exc()
+
     # For other exceptions, create a response with CORS headers
+    # Include the error message in development, but be careful in production
     response = JSONResponse(
         status_code=500,
-        content={"detail": "Internal server error"}
+        content={"detail": f"Internal server error: {error_detail}"}
     )
     # Explicitly add CORS headers to error responses
     response.headers["access-control-allow-origin"] = "*"

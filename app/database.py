@@ -28,6 +28,10 @@ def build_database_url():
     # 2. Force SSL for Render (free tier ONLY accepts sslmode=require)
     # ------------------------------------------------------------------
     if "render.com" in url.lower():
+        # Convert postgresql:// to postgresql+psycopg2:// for Render
+        if url.startswith("postgresql://") and not url.startswith("postgresql+psycopg2://"):
+            url = url.replace("postgresql://", "postgresql+psycopg2://", 1)
+
         # Strip any existing sslmode
         url = re.sub(r"[?&]sslmode=[^&]*", "", url).rstrip("?&")
 
