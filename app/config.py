@@ -1,7 +1,9 @@
 from pydantic_settings import BaseSettings
+from typing import Optional
 
 
 class Settings(BaseSettings):
+    database_url: Optional[str] = None
     database_host: str = "localhost"
     database_port: str = "5432"
     database_password: str = ""

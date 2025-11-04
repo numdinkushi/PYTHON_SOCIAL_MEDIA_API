@@ -19,10 +19,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 config = context.config  # pylint: disable=no-member
 
 # Override sqlalchemy.url from config to use the same settings as database.py
-database_url = (
-    f"postgresql://{settings.database_user}:{settings.database_password}"
-    f"@{settings.database_host}:{settings.database_port}/{settings.database_name}"
-)
+if settings.database_url:
+    database_url = settings.database_url
+else:
+    database_url = (
+        f"postgresql://{settings.database_user}:{settings.database_password}"
+        f"@{settings.database_host}:{settings.database_port}/{settings.database_name}"
+    )
 config.set_main_option("sqlalchemy.url", database_url)
 
 # Interpret the config file for Python logging.
