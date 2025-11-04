@@ -32,9 +32,12 @@ async def startup_event():
     try:
         alembic_cfg = Config(alembic_ini_path)
         command.upgrade(alembic_cfg, "head")
+        print("Database migrations completed successfully")
     except Exception as e:
         # Log error but don't crash the app
-        print(f"Migration error (this is okay on first deploy): {e}")
+        print(f"Migration error: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 app.add_middleware(
