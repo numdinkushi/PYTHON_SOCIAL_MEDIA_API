@@ -81,7 +81,7 @@ def run_migrations_online() -> None:
             "keepalives_count": 5,
             "connect_timeout": 10,
         }
-    
+
     configuration = config.get_section(config.config_ini_section, {})
     connectable = engine_from_config(
         configuration,
