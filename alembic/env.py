@@ -1,6 +1,7 @@
 from app.config import settings  # pylint: disable=import-error
 from app import models  # pylint: disable=import-error,unused-import
 from app.models import Base  # pylint: disable=import-error
+from app.database import build_database_url  # pylint: disable=import-error
 from logging.config import fileConfig
 import sys
 from pathlib import Path
@@ -19,13 +20,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 config = context.config  # pylint: disable=no-member
 
 # Override sqlalchemy.url from config to use the same settings as database.py
-if settings.database_url:
-    database_url = settings.database_url
-else:
-    database_url = (
-        f"postgresql://{settings.database_user}:{settings.database_password}"
-        f"@{settings.database_host}:{settings.database_port}/{settings.database_name}"
-    )
+# This ensures SSL configuration is properly applied for Render PostgreSQL
+database_url = build_database_url()
 config.set_main_option("sqlalchemy.url", database_url)
 
 # Interpret the config file for Python logging.
@@ -74,10 +70,24 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
+    # Build connection arguments for SSL configuration (required for Render PostgreSQL)
+    connect_args = {}
+    if "render.com" in database_url.lower():
+        connect_args = {
+            "sslmode": "require",
+            "keepalives": 1,
+            "keepalives_idle": 30,
+            "keepalives_interval": 10,
+            "keepalives_count": 5,
+            "connect_timeout": 10,
+        }
+    
+    configuration = config.get_section(config.config_ini_section, {})
     connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
+        configuration,
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
+        connect_args=connect_args,
     )
 
     with connectable.connect() as connection:
