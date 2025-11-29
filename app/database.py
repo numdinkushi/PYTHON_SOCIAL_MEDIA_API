@@ -25,18 +25,28 @@ def build_database_url():
             f"{settings.database_name}"
         )
 
-    # Force psycopg2-binary and SSL for Render
-    if "render.com" in url.lower():
+    # Detect Render PostgreSQL URLs (both internal and external)
+    # Internal URLs: dpg-xxx-a (short hostname)
+    # External URLs: dpg-xxx-a.oregon-postgres.render.com (full domain)
+    is_render_db = re.search(r"dpg-[a-z0-9]+-[a-z]", url.lower()) is not None
+
+    if is_render_db:
         # Convert postgresql:// to postgresql+psycopg2://
         if url.startswith("postgresql://") and not url.startswith("postgresql+psycopg2://"):
             url = url.replace("postgresql://", "postgresql+psycopg2://", 1)
 
+        # Check if this is an external Render URL (has .oregon-postgres.render.com or similar)
+        # Internal URLs use short hostnames like dpg-xxx-a, external use full domain
+        is_external_url = ".oregon-postgres.render.com" in url.lower() or ".postgres.render.com" in url.lower()
+
         # Remove any existing sslmode
         url = re.sub(r"[?&]sslmode=[^&]*", "", url).rstrip("?&")
 
-        # Use require mode for Render (Render PostgreSQL requires SSL)
-        separator = "&" if "?" in url else "?"
-        url += f"{separator}sslmode=require"
+        # Only require SSL for external connections
+        # Internal Render connections don't need SSL
+        if is_external_url:
+            separator = "&" if "?" in url else "?"
+            url += f"{separator}sslmode=require"
 
     return url
 
@@ -48,24 +58,44 @@ SQLALCHEMY_DATABASE_URL = build_database_url()
 # 2. Connection arguments for Render PostgreSQL
 # ------------------------------------------------------------------
 connect_args = {}
-if "render.com" in SQLALCHEMY_DATABASE_URL.lower():
+# Detect Render PostgreSQL URLs (both internal and external)
+is_render_db = re.search(r"dpg-[a-z0-9]+-[a-z]",
+                         SQLALCHEMY_DATABASE_URL.lower()) is not None
+
+if is_render_db:
+    # Check if this is an external Render URL (requires SSL)
+    is_external_connection = ".oregon-postgres.render.com" in SQLALCHEMY_DATABASE_URL.lower(
+    ) or ".postgres.render.com" in SQLALCHEMY_DATABASE_URL.lower()
+
     # Use connect_args for SSL (psycopg2-binary reads from here)
     # Note: sslmode in URL is also set, but connect_args takes precedence
-    connect_args = {
-        "sslmode": "require",        # Required for Render PostgreSQL
-        "keepalives": 1,             # Enable TCP keepalives
-        "keepalives_idle": 30,       # Start keepalives after 30s idle
-        "keepalives_interval": 10,   # Send keepalive every 10s
-        "keepalives_count": 5,       # Fail after 5 missed keepalives
-        "connect_timeout": 30,       # Increased connection timeout for Render
-    }
+    # Only require SSL for external connections; internal Render connections don't need it
+    if is_external_connection:
+        connect_args = {
+            "sslmode": "require",        # Required for external Render PostgreSQL
+            "keepalives": 1,             # Enable TCP keepalives
+            "keepalives_idle": 30,       # Start keepalives after 30s idle
+            "keepalives_interval": 10,   # Send keepalive every 10s
+            "keepalives_count": 5,       # Fail after 5 missed keepalives
+            "connect_timeout": 30,       # Increased connection timeout for Render
+        }
+    else:
+        # Internal Render connection - no SSL needed, but keep keepalives for stability
+        connect_args = {
+            "keepalives": 1,
+            "keepalives_idle": 30,
+            "keepalives_interval": 10,
+            "keepalives_count": 5,
+            "connect_timeout": 30,
+        }
 
 
 # ------------------------------------------------------------------
 # 3. Create engine with robust connection pooling
 # ------------------------------------------------------------------
 # Configure pool settings based on environment
-is_render = "render.com" in SQLALCHEMY_DATABASE_URL.lower()
+is_render = re.search(r"dpg-[a-z0-9]+-[a-z]",
+                      SQLALCHEMY_DATABASE_URL.lower()) is not None
 pool_size = 3 if is_render else 5  # Smaller pool for Render stability
 max_overflow = 5 if is_render else 10  # Fewer overflow connections for Render
 # Shorter recycle for Render (2 min)
