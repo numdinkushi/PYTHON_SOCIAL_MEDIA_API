@@ -78,9 +78,9 @@ def run_migrations_online() -> None:
         r"dpg-[a-z0-9]+-[a-z]", database_url.lower()) is not None
 
     if is_render_db:
-        # Always require SSL for Render PostgreSQL (recommended by Render)
+        # Use prefer mode for Render PostgreSQL (more lenient SSL handling)
         connect_args = {
-            "sslmode": "require",        # Required for Render PostgreSQL
+            "sslmode": "prefer",         # Prefer SSL but allow fallback
             "keepalives": 1,
             "keepalives_idle": 30,
             "keepalives_interval": 10,
