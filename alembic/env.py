@@ -78,29 +78,15 @@ def run_migrations_online() -> None:
         r"dpg-[a-z0-9]+-[a-z]", database_url.lower()) is not None
 
     if is_render_db:
-        # Check if this is an external Render URL (requires SSL)
-        is_external = ".oregon-postgres.render.com" in database_url.lower(
-        ) or ".postgres.render.com" in database_url.lower()
-
-        # Only require SSL for external connections; internal Render connections don't need it
-        if is_external:
-            connect_args = {
-                "sslmode": "require",        # Required for external Render PostgreSQL
-                "keepalives": 1,
-                "keepalives_idle": 30,
-                "keepalives_interval": 10,
-                "keepalives_count": 5,
-                "connect_timeout": 30,
-            }
-        else:
-            # Internal Render connection - no SSL needed
-            connect_args = {
-                "keepalives": 1,
-                "keepalives_idle": 30,
-                "keepalives_interval": 10,
-                "keepalives_count": 5,
-                "connect_timeout": 30,
-            }
+        # Always require SSL for Render PostgreSQL (recommended by Render)
+        connect_args = {
+            "sslmode": "require",        # Required for Render PostgreSQL
+            "keepalives": 1,
+            "keepalives_idle": 30,
+            "keepalives_interval": 10,
+            "keepalives_count": 5,
+            "connect_timeout": 30,
+        }
 
     # Use create_engine directly to ensure connect_args are properly applied
     connectable = create_engine(

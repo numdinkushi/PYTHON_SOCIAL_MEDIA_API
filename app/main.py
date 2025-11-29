@@ -1,6 +1,5 @@
 from typing import List
 from fastapi import FastAPI, status, HTTPException, Depends
-from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 from .database import engine, get_db
 from . import models
@@ -85,5 +84,5 @@ app.include_router(vote.router)
 
 @app.get("/")
 def read_root():
-    """Redirect root URL to API documentation."""
-    return RedirectResponse(url="/docs")
+    """Root endpoint."""
+    return {"message": "FastAPI Social Media API", "docs": "/docs", "redoc": "/redoc"}
