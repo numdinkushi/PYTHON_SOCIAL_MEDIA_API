@@ -6,7 +6,7 @@ from logging.config import fileConfig
 import sys
 from pathlib import Path
 
-from sqlalchemy import engine_from_config
+from sqlalchemy import create_engine
 from sqlalchemy import pool
 
 from alembic import context  # pylint: disable=import-error
@@ -74,18 +74,17 @@ def run_migrations_online() -> None:
     connect_args = {}
     if "render.com" in database_url.lower():
         connect_args = {
-            "sslmode": "require",
+            "sslmode": "require",        # Required for Render PostgreSQL
             "keepalives": 1,
             "keepalives_idle": 30,
             "keepalives_interval": 10,
             "keepalives_count": 5,
-            "connect_timeout": 10,
+            "connect_timeout": 30,       # Increased connection timeout for Render
         }
-    
-    configuration = config.get_section(config.config_ini_section, {})
-    connectable = engine_from_config(
-        configuration,
-        prefix="sqlalchemy.",
+
+    # Use create_engine directly to ensure connect_args are properly applied
+    connectable = create_engine(
+        database_url,
         poolclass=pool.NullPool,
         connect_args=connect_args,
     )

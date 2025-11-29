@@ -34,7 +34,7 @@ def build_database_url():
         # Remove any existing sslmode
         url = re.sub(r"[?&]sslmode=[^&]*", "", url).rstrip("?&")
 
-        # Add sslmode=require to URL (works with psycopg2-binary)
+        # Use require mode for Render (Render PostgreSQL requires SSL)
         separator = "&" if "?" in url else "?"
         url += f"{separator}sslmode=require"
 
@@ -57,21 +57,30 @@ if "render.com" in SQLALCHEMY_DATABASE_URL.lower():
         "keepalives_idle": 30,       # Start keepalives after 30s idle
         "keepalives_interval": 10,   # Send keepalive every 10s
         "keepalives_count": 5,       # Fail after 5 missed keepalives
-        "connect_timeout": 10,       # Connection timeout in seconds
+        "connect_timeout": 30,       # Increased connection timeout for Render
     }
 
 
 # ------------------------------------------------------------------
 # 3. Create engine with robust connection pooling
 # ------------------------------------------------------------------
+# Configure pool settings based on environment
+is_render = "render.com" in SQLALCHEMY_DATABASE_URL.lower()
+pool_size = 3 if is_render else 5  # Smaller pool for Render stability
+max_overflow = 5 if is_render else 10  # Fewer overflow connections for Render
+# Shorter recycle for Render (2 min)
+pool_recycle_time = 120 if is_render else 300
+
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL,
     connect_args=connect_args,
     poolclass=QueuePool,
-    pool_size=5,                    # Number of connections to keep open
-    max_overflow=10,                 # Additional connections allowed
-    pool_pre_ping=True,              # Verify connections before using
-    pool_recycle=300,                # Recycle connections every 5 minutes
+    pool_size=pool_size,
+    max_overflow=max_overflow,
+    # Verify connections before using (critical for Render)
+    pool_pre_ping=True,
+    # Recycle connections to prevent stale SSL connections
+    pool_recycle=pool_recycle_time,
     pool_reset_on_return='commit',   # Reset connection state on return
     echo=False,                      # Set True for SQL query logging
 )
